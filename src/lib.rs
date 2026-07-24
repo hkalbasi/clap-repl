@@ -1,6 +1,6 @@
 use std::{ffi::OsString, marker::PhantomData, path::PathBuf, str::FromStr};
 
-use clap::{Parser, Subcommand};
+use clap::Parser;
 use console::style;
 
 // reexport reedline to prevent version mixups
@@ -24,8 +24,7 @@ struct ReedCompleter<C: Parser + Send + Sync + 'static> {
 
 impl<C: Parser + Send + Sync + 'static> reedline::Completer for ReedCompleter<C> {
     fn complete(&mut self, line: &str, pos: usize) -> Vec<reedline::Suggestion> {
-        let cmd = C::command();
-        let mut cmd = clap_complete::dynamic::command::CompleteCommand::augment_subcommands(cmd);
+        let mut cmd = C::command();
         let args = Shlex::new(line);
         let mut args = std::iter::once("".to_owned())
             .chain(args)
@@ -36,7 +35,7 @@ impl<C: Parser + Send + Sync + 'static> reedline::Completer for ReedCompleter<C>
         }
         let arg_index = args.len() - 1;
         let span = Span::new(pos - args[arg_index].len(), pos);
-        let Ok(candidates) = clap_complete::dynamic::complete(
+        let Ok(candidates) = clap_complete::engine::complete(
             &mut cmd,
             args,
             arg_index,
@@ -47,12 +46,14 @@ impl<C: Parser + Send + Sync + 'static> reedline::Completer for ReedCompleter<C>
         candidates
             .into_iter()
             .map(|c| reedline::Suggestion {
-                value: c.get_content().to_string_lossy().into_owned(),
+                value: c.get_value().to_string_lossy().into_owned(),
                 description: c.get_help().map(|x| x.to_string()),
+                display_override: None,
                 style: None,
                 extra: None,
                 span,
                 append_whitespace: true,
+                match_indices: None,
             })
             .collect()
     }
@@ -99,6 +100,7 @@ impl<C: Parser + Send + Sync + 'static> ClapEditor<C> {
             Ok(Signal::Success(buffer)) => buffer,
             Ok(Signal::CtrlC) => return ReadCommandOutput::CtrlC,
             Ok(Signal::CtrlD) => return ReadCommandOutput::CtrlD,
+            Ok(_) => return ReadCommandOutput::EmptyLine,
             Err(e) => return ReadCommandOutput::ReedlineError(e),
         };
         if line.trim().is_empty() {
