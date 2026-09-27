@@ -5,7 +5,7 @@ use console::style;
 
 // reexport reedline to prevent version mixups
 pub use reedline;
-use reedline::{Prompt, Reedline, Signal, Span};
+use reedline::{CompletionResult, Prompt, Reedline, Signal, Span};
 use shlex::Shlex;
 
 mod builder;
@@ -23,7 +23,7 @@ struct ReedCompleter<C: Parser + Send + Sync + 'static> {
 }
 
 impl<C: Parser + Send + Sync + 'static> reedline::Completer for ReedCompleter<C> {
-    fn complete(&mut self, line: &str, pos: usize) -> Vec<reedline::Suggestion> {
+    fn complete(&mut self, line: &str, pos: usize) -> CompletionResult {
         let mut cmd = C::command();
         let args = Shlex::new(line);
         let mut args = std::iter::once("".to_owned())
@@ -41,21 +41,23 @@ impl<C: Parser + Send + Sync + 'static> reedline::Completer for ReedCompleter<C>
             arg_index,
             PathBuf::from_str(".").ok().as_deref(),
         ) else {
-            return vec![];
+            return CompletionResult::fresh(vec![]);
         };
-        candidates
-            .into_iter()
-            .map(|c| reedline::Suggestion {
-                value: c.get_value().to_string_lossy().into_owned(),
-                description: c.get_help().map(|x| x.to_string()),
-                display_override: None,
-                style: None,
-                extra: None,
-                span,
-                append_whitespace: true,
-                match_indices: None,
-            })
-            .collect()
+        CompletionResult::fresh(
+            candidates
+                .into_iter()
+                .map(|c| reedline::Suggestion {
+                    value: c.get_value().to_string_lossy().into_owned(),
+                    description: c.get_help().map(|x| x.to_string()),
+                    display_override: None,
+                    style: None,
+                    extra: None,
+                    span,
+                    append_whitespace: true,
+                    match_indices: None,
+                })
+                .collect::<Vec<_>>(),
+        )
     }
 }
 
